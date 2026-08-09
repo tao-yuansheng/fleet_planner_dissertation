@@ -1,0 +1,13 @@
+# Generated run outputs — never commit
+out/
+out_*/
+runs/
+runs_*/
+run_*/
+_val_*/
+compare_*/
+experiments/
+dissertation/
+data/enriched_orders_*before*.parquet
+data/enriched_orders_*.stale*.parquet
+__pycache__/

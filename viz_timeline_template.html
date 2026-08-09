@@ -1,0 +1,1172 @@
+<title>Dispatch Control Board</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#eef2f6; --panel:#ffffff; --panel2:#f5f8fb; --hair:#d3dbe3; --hair2:#e3e9ef;
+    --ink:#1a2733; --muted:#5f7183; --faint:#8496a6;
+    --firm:#cf8a1f; --firm-ink:#3a2606; --tent:#3f6a94; --done:#9fb0be; --ghost:#c3ced8;
+    --micro:#d5382b; --pickup:#3f78ad; --delivery:#3f9a5a; --direct:#8a5cc0; --depot:#7d8b99;
+    --util-pal:#2a9d8f; --util-wt:#e8590c;
+    --frontier:rgba(207,138,31,.13); --frontier-edge:rgba(207,138,31,.55);
+    --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0e151d; --panel:#16202b; --panel2:#111a23; --hair:#26333f; --hair2:#1e2a35;
+      --ink:#dfe7ee; --muted:#8b9aa8; --faint:#657585;
+      --firm:#e6a338; --firm-ink:#1a1205; --tent:#7ea3c6; --done:#3a4b5c; --ghost:#2b3947;
+      --micro:#ff5a4d; --pickup:#6aa3d6; --delivery:#6fbf7f; --direct:#b58fd6; --depot:#5c6b7a;
+      --util-pal:#54c4b6; --util-wt:#ff8c42;
+      --frontier:rgba(230,163,56,.12); --frontier-edge:rgba(230,163,56,.6);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f6; --panel:#ffffff; --panel2:#f5f8fb; --hair:#d3dbe3; --hair2:#e3e9ef;
+    --ink:#1a2733; --muted:#5f7183; --faint:#8496a6;
+    --firm:#cf8a1f; --firm-ink:#3a2606; --tent:#3f6a94; --done:#9fb0be; --ghost:#c3ced8;
+    --micro:#d5382b; --pickup:#3f78ad; --delivery:#3f9a5a; --direct:#8a5cc0; --depot:#7d8b99;
+    --util-pal:#2a9d8f; --util-wt:#e8590c;
+    --frontier:rgba(207,138,31,.13); --frontier-edge:rgba(207,138,31,.55);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e151d; --panel:#16202b; --panel2:#111a23; --hair:#26333f; --hair2:#1e2a35;
+    --ink:#dfe7ee; --muted:#8b9aa8; --faint:#657585;
+    --firm:#e6a338; --firm-ink:#1a1205; --tent:#7ea3c6; --done:#3a4b5c; --ghost:#2b3947;
+    --micro:#ff5a4d; --pickup:#6aa3d6; --delivery:#6fbf7f; --direct:#b58fd6; --depot:#5c6b7a;
+    --util-pal:#54c4b6; --util-wt:#ff8c42;
+    --frontier:rgba(230,163,56,.12); --frontier-edge:rgba(230,163,56,.6);
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg)}   /* kill the local-file body margin/white border */
+  .wrap{background:var(--bg);color:var(--ink);font-family:var(--font);
+    min-height:100%;padding:22px clamp(14px,3vw,34px) 40px;line-height:1.5}
+  .head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;
+    gap:16px;margin-bottom:18px}
+  .headright{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+  h1{font-size:clamp(18px,2.4vw,23px);margin:0;font-weight:650;letter-spacing:-.01em;text-wrap:balance}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:4px;max-width:66ch}
+  .sub b{color:var(--ink);font-weight:600}
+  .clock{font-family:var(--mono);text-align:right;line-height:1.1}
+  .clock .t{font-size:clamp(26px,4.4vw,38px);font-weight:600;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+  .clock .ep{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-top:3px}
+  .clock .ep b{color:var(--firm);font-weight:600}
+
+  .daynav{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
+  .daynav .date{font-family:var(--mono);font-size:15px;font-weight:600;min-width:15ch;text-align:center;
+    font-variant-numeric:tabular-nums}
+  .daynav .pg{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.1em}
+  .arrow{font-family:var(--font);font-size:16px;line-height:1;color:var(--ink);background:var(--panel);
+    border:1px solid var(--hair);border-radius:8px;padding:6px 12px;cursor:pointer}
+  .arrow:hover:not(:disabled){border-color:var(--faint)}
+  .arrow:disabled{opacity:.36;cursor:default}
+  .arrow:focus-visible{outline:2px solid var(--firm);outline-offset:2px}
+
+  .chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:16px}
+  .chip{background:var(--panel);border:1px solid var(--hair);border-radius:10px;padding:11px 13px}
+  .chip .n{font-family:var(--mono);font-size:23px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+  .chip .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-top:6px}
+  .chip.tent{border-color:color-mix(in srgb,var(--tent) 45%,var(--hair))}
+  .chip.tent .n{color:var(--tent)}
+  .chip.firm{border-color:color-mix(in srgb,var(--firm) 55%,var(--hair));background:color-mix(in srgb,var(--firm) 7%,var(--panel))}
+  .chip.firm .n{color:var(--firm)}
+
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+  button.btn{font-family:var(--font);font-size:13px;color:var(--ink);background:var(--panel);
+    border:1px solid var(--hair);border-radius:8px;padding:7px 13px;cursor:pointer;display:flex;gap:7px;align-items:center}
+  button.btn:hover{border-color:var(--faint)}
+  button.btn:focus-visible{outline:2px solid var(--firm);outline-offset:2px}
+  button.btn.on{background:color-mix(in srgb,var(--micro) 16%,var(--panel));border-color:var(--micro);color:var(--ink)}
+  button .play{width:0;height:0;border-left:9px solid currentColor;border-top:6px solid transparent;border-bottom:6px solid transparent}
+  button.playing .play{border:0;width:9px;height:11px;border-left:3px solid currentColor;border-right:3px solid currentColor}
+  .spacer{flex:1 1 auto}
+  .hint{font-size:12px;color:var(--faint)}
+
+  .board{background:var(--panel);border:1px solid var(--hair);border-radius:12px;overflow:hidden;position:relative}
+  canvas{display:block;width:100%;touch-action:none;cursor:ew-resize}
+  .tip{position:fixed;z-index:3000;pointer-events:none;background:var(--panel2);color:var(--ink);
+    border:1px solid var(--hair);border-radius:9px;padding:9px 11px;font-size:12px;max-width:300px;
+    font-family:var(--font);box-shadow:0 8px 26px rgba(0,0,0,.28);opacity:0;transition:opacity .1s}
+  .tip .o{font-family:var(--mono);font-weight:600;font-size:12.5px}
+  .tip .row{display:flex;justify-content:space-between;gap:16px;margin-top:5px;color:var(--muted)}
+  .tip .row span:last-child{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
+  .tip .nm span:last-child{color:var(--firm)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:16px 22px;margin-top:16px;font-size:12px;color:var(--muted);align-items:center}
+  .legend .grp{display:flex;gap:9px;align-items:center}
+  .sw{width:22px;height:13px;border-radius:3px;flex:none}
+  .sw.tent{background:transparent;border:1.5px dashed var(--tent)}
+  .sw.firm{background:var(--firm)}
+  .sw.done{background:var(--done)}
+  .sw.dwell{background:linear-gradient(90deg,var(--delivery) 0 52%,color-mix(in srgb,var(--delivery) 40%,var(--ink)) 52% 100%)}
+  .sw.f60{background:var(--frontier);outline:1px solid var(--frontier-edge)}
+  .sw.f90{background:transparent;border:1px dashed var(--frontier-edge)}
+  .foot{margin-top:20px;padding-top:14px;border-top:1px solid var(--hair2);color:var(--faint);font-size:11.5px;max-width:86ch}
+  .foot code{font-family:var(--mono);color:var(--muted)}
+
+  /* ---- map overlay (opens on a vehicle click) ---- */
+  #mapWrap{position:fixed;inset:0;z-index:1000;background:var(--bg);display:none;flex-direction:column;
+    font-family:var(--font);color:var(--ink)}
+  #mapWrap.open{display:flex}
+  #mapBar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;
+    padding:8px 16px;border-bottom:1px solid var(--hair);background:var(--panel);color:var(--ink)}
+  #mapBar .mapLeft{display:flex;flex-direction:column;gap:2px;min-width:0}
+  #mapBar .who{font-family:var(--mono);font-weight:600;font-size:15px}
+  #mapBar .meta{color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #mapBar .mapCenter{display:flex;flex-direction:column;align-items:center;gap:3px;justify-self:center}
+  #mapBar .mclock{font-family:var(--mono);font-weight:600;font-size:27px;font-variant-numeric:tabular-nums;line-height:1;letter-spacing:.01em}
+  #mapBar .mapTransport{display:flex;gap:8px}
+  #mapBar .mapRight{display:flex;align-items:center;gap:14px;justify-self:end}
+  #mapBar .mapbtn{font-family:var(--font);font-size:12px;color:var(--muted);background:var(--panel);
+    border:1px solid var(--hair);border-radius:7px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+  #mapBar .mapbtn[aria-pressed="true"]{color:var(--ink);border-color:var(--micro);
+    background:color-mix(in srgb,var(--micro) 16%,var(--panel))}
+  .miconbtn{width:30px;height:26px;display:flex;align-items:center;justify-content:center;
+    background:var(--panel2);border:1px solid var(--hair);border-radius:7px;cursor:pointer;color:var(--ink)}
+  .miconbtn:hover{border-color:var(--faint)}
+  .miconbtn:focus-visible{outline:2px solid var(--firm);outline-offset:2px}
+  .miconbtn .play{width:0;height:0;border-left:9px solid currentColor;border-top:6px solid transparent;border-bottom:6px solid transparent;margin-left:2px}
+  .miconbtn.playing .play{border:0;width:8px;height:11px;border-left:3px solid currentColor;border-right:3px solid currentColor;margin:0}
+  .miconbtn .stop{width:10px;height:10px;background:currentColor;border-radius:1px}
+  /* iOS-style focus switch: committed (grey) <-> internal (green) */
+  .iosw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12px;color:var(--muted)}
+  .iosw .lbl{font-weight:600;color:var(--ink);min-width:9ch;text-align:right}
+  .iosw input{position:absolute;opacity:0;width:0;height:0}
+  .ioswtrack{width:44px;height:26px;border-radius:13px;background:var(--done);position:relative;transition:background .18s;flex:none}
+  .ioswtrack::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.45);transition:transform .18s}
+  .iosw input:checked + .ioswtrack{background:#34c759}
+  .iosw input:checked + .ioswtrack::after{transform:translateX(18px)}
+  .iosw input:focus-visible + .ioswtrack{outline:2px solid var(--firm);outline-offset:2px}
+  /* Board <-> Map mode toggle (segmented; in the board head AND the map bar) */
+  .modeswitch{display:inline-flex;background:var(--panel2);border:1px solid var(--hair);border-radius:9px;padding:2px;gap:2px}
+  .modeswitch button{font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--muted);
+    background:transparent;border:0;border-radius:7px;padding:6px 15px;cursor:pointer}
+  .modeswitch button.on{background:var(--firm);color:var(--firm-ink)}
+  .modeswitch button:not(.on):hover{color:var(--ink)}
+  .modeswitch button:focus-visible{outline:2px solid var(--firm);outline-offset:2px}
+  /* map mode: left vehicle sidebar + main area */
+  #mapBody{flex:1 1 auto;display:flex;min-height:0}
+  #mapSidebar{width:214px;flex:none;background:var(--panel);border-right:1px solid var(--hair);
+    display:flex;flex-direction:column;min-height:0}
+  #mapSideNav{display:flex;align-items:center;gap:6px;padding:8px 10px;border-bottom:1px solid var(--hair2)}
+  #mapSideNav .date{font-family:var(--mono);font-size:12px;font-weight:600;flex:1;text-align:center;font-variant-numeric:tabular-nums}
+  #mapSideList{overflow-y:auto;flex:1 1 auto;padding:4px 0 10px}
+  .svgrp{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--firm);font-weight:700;padding:9px 12px 3px}
+  .svitem{display:flex;align-items:center;gap:7px;padding:5px 12px;cursor:pointer;font-size:12px;color:var(--muted)}
+  .svitem:hover{background:var(--panel2)}
+  .svitem.on{background:color-mix(in srgb,var(--firm) 15%,var(--panel));color:var(--ink)}
+  .svitem .ic{width:14px;text-align:center;flex:none}
+  .svitem .vid{font-family:var(--mono);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .svitem.on .vid{font-weight:600}
+  #mapMain{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0}
+  #map{flex:1 1 auto;background:#0b0f14;position:relative}
+  #mapStrip{display:block;width:100%;height:90px;background:var(--panel);border-top:1px solid var(--hair);
+    touch-action:none;cursor:default;flex:none}
+  /* dedicated clock scrubber: no order blocks, so it never triggers the detail popup (60-40 with the strip) */
+  #mapSlider{display:block;width:100%;height:60px;background:var(--panel2);border-top:1px solid var(--hair);
+    touch-action:none;cursor:ew-resize;flex:none}
+  .leaflet-container{background:#0b0f14;font-family:var(--font)}
+  .mstop{display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;
+    font-size:11px;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.6);width:20px;height:20px}
+  .mcollect{width:9px;height:9px;border-radius:50%;background:transparent;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+  .mdepot{width:13px;height:13px;background:#ffd34d;border:2px solid #fff;border-radius:3px;box-shadow:0 1px 4px #000}
+  /* the simulated truck: a bright HOLLOW ring, obvious on any route colour or tile */
+  .mtruck{width:15px;height:15px;border-radius:50%;background:transparent;border:4px solid #22d3ee;
+    box-shadow:0 0 0 2px rgba(0,0,0,.6),0 0 10px 2px rgba(34,211,238,.8)}
+  .svitem .tdot{width:7px;height:7px;border-radius:2px;flex:none;display:inline-block;margin-right:2px}
+  .maplegend{position:absolute;right:12px;bottom:12px;z-index:1200;background:var(--panel);border:1px solid var(--hair);
+    border-radius:9px;padding:9px 11px;font-size:11.5px;color:var(--muted);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  .maplegend .grp{display:flex;gap:8px;align-items:center;margin-top:5px}
+  .maplegend .grp:first-child{margin-top:0}
+  .maplegend .d{width:12px;height:12px;flex:none;border:2px solid #fff}
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Dispatch Control Board</h1>
+      <div class="sub">The rolling plan as it stood at any clock time. Click a truck to open it on the map.</div>
+    </div>
+    <div class="headright">
+      <div class="modeswitch" role="tablist" aria-label="View mode">
+        <button data-mode="board" class="on" type="button">Board</button>
+        <button data-mode="map" type="button">Map</button>
+      </div>
+      <div class="clock"><div class="t" id="clk">03:00</div><div class="ep" id="epk">plan as of <b>03:00</b></div></div>
+    </div>
+  </div>
+
+  <div class="daynav">
+    <button class="arrow" id="prevDay" aria-label="Previous day">◀</button>
+    <div class="date" id="dayDate">—</div>
+    <button class="arrow" id="nextDay" aria-label="Next day">▶</button>
+    <div class="pg" id="dayPg"></div>
+  </div>
+
+  <div class="chips">
+    <div class="chip"><div class="n" id="c_known">0</div><div class="l">Orders known</div></div>
+    <div class="chip"><div class="n" id="c_placed">0</div><div class="l">In the plan now</div></div>
+    <div class="chip tent"><div class="n" id="c_tent">0</div><div class="l">Uncommitted · movable</div></div>
+    <div class="chip firm"><div class="n" id="c_firm">0</div><div class="l">Committed to drivers</div></div>
+    <div class="chip"><div class="n" id="c_done">0</div><div class="l">Stops completed</div></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="play" aria-label="Play the day"><span class="play"></span><span id="playlbl">Play the day</span></button>
+    <button class="btn" id="rewind" aria-label="Back to 03:00">↺ 03:00</button>
+    <button class="btn" id="flt" aria-pressed="false">Only trucks that changed intraday</button>
+    <div class="spacer"></div>
+    <div class="hint">Drag to move the clock · arrows change the day · hover a stop for detail · click a truck's name for its map</div>
+  </div>
+
+  <div class="board"><canvas id="cv"></canvas></div>
+
+  <div class="legend">
+    <div class="grp"><span class="sw" style="background:var(--pickup)"></span>pickup leg</div>
+    <div class="grp"><span class="sw" style="background:var(--delivery)"></span>delivery leg</div>
+    <div class="grp"><span class="sw" style="background:var(--direct)"></span>direct carry</div>
+    <div class="grp"><span class="sw dwell"></span>dwell · handling at the stop</div>
+    <div class="grp"><span class="sw" style="background:var(--depot)"></span>drive back to depot</div>
+    <div class="grp"><span style="color:var(--firm);font-size:13px;line-height:1">▸ ◂</span>leaves / returns to depot</div>
+    <div class="grp"><span class="sw" style="background:#0e8f86"></span>⇅ trunk ⇄ hub on its assigned tractor's lane (solid=out, dashed=return)</div>
+    <div class="grp"><span class="sw firm"></span>committed to driver</div>
+    <div class="grp"><span class="sw tent"></span>uncommitted (can still move)</div>
+    <div class="grp"><span class="sw done"></span>completed (dimmed)</div>
+    <div class="grp"><span class="sw" style="background:#e5484d;border-radius:50%"></span>newly inserted order</div>
+    <div class="grp"><span class="sw" style="background:#f5a623;border-radius:50%"></span>re-optimised (moved)</div>
+    <div class="grp"><span class="sw" style="background:var(--direct);border:1.5px dashed var(--ink)"></span>⛺ multi-day tour (purple bar = committed at seed; » continues overnight)</div>
+    <div class="grp"><span class="sw f90"></span>+90 min commit freeze</div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<div id="mapWrap" aria-hidden="true">
+  <div id="mapBar">
+    <div class="mapLeft">
+      <span class="who" id="mapWho">—</span>
+      <span class="meta" id="mapMeta"></span>
+    </div>
+    <div class="mapCenter">
+      <span class="mclock" id="mapClock">03:00</span>
+      <div class="mapTransport">
+        <button class="miconbtn" id="mapPlay" title="Play the day" aria-label="Play"><span class="play"></span></button>
+        <button class="miconbtn" id="mapStop" title="Stop — back to 03:00" aria-label="Stop"><span class="stop"></span></button>
+      </div>
+    </div>
+    <div class="mapRight">
+      <div class="modeswitch" id="mapAllModes" style="display:none" role="tablist" aria-label="All-routes colouring">
+        <button data-amode="veh" class="on" type="button" title="One colour per vehicle">Vehicle</button>
+        <button data-amode="type" type="button" title="Colour routes by vehicle type">Type</button>
+        <button data-amode="flow" type="button" title="Faint routes; service points coloured by flow">Flow</button>
+        <button data-amode="depot" type="button" title="Colour routes by the vehicle's home depot">Depot</button>
+      </div>
+      <button class="mapbtn" id="mapAllBtn" type="button" aria-pressed="false"
+        title="Zoom out and overlay every vehicle's full-day route, one colour each (view only)">All routes</button>
+      <label class="iosw" title="Dynamic: real-time — legs the truck has finished grey out. Static: the full route in colour, nothing greys. Both re-optimise live.">
+        <span class="lbl" id="mapFocusLbl">Dynamic</span>
+        <input type="checkbox" id="mapFocus"><span class="ioswtrack"></span>
+      </label>
+      <div class="modeswitch" role="tablist" aria-label="View mode">
+        <button data-mode="board" type="button">Board</button>
+        <button data-mode="map" class="on" type="button">Map</button>
+      </div>
+    </div>
+  </div>
+  <div id="mapBody">
+    <aside id="mapSidebar">
+      <div id="mapSideNav">
+        <button class="arrow" id="mapPrevDay" aria-label="Previous day">◀</button>
+        <div class="date" id="mapSideDate">—</div>
+        <button class="arrow" id="mapNextDay" aria-label="Next day">▶</button>
+      </div>
+      <div id="mapSideList"></div>
+    </aside>
+    <div id="mapMain">
+      <div id="map">
+        <div class="maplegend">
+          <div class="grp"><span class="d" style="background:var(--pickup);border-radius:50%"></span>pickup</div>
+          <div class="grp"><span class="d" style="background:var(--delivery)"></span>delivery</div>
+          <div class="grp"><span class="d" style="background:var(--direct);transform:rotate(45deg)"></span>direct carry</div>
+          <div class="grp"><span class="d" style="background:#ffd34d;border-radius:3px"></span>depot</div>
+        </div>
+        <div class="maplegend" id="mapAllLegend" style="display:none"></div>
+      </div>
+      <canvas id="mapStrip" title="Hover a block for its detail — the route above re-forms as the plan re-optimizes"></canvas>
+      <canvas id="mapSlider" title="Drag to move the clock"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>__MAPLOGIC__</script>
+<script>
+const DATA = __DATA__;
+(function(){
+  "use strict";
+  const cv=document.getElementById("cv"), ctx=cv.getContext("2d"), tip=document.getElementById("tip");
+  const M=DATA.meta, T0=M.t0, T1=M.t1, DELTA=M.delta, DELTA_R1=M.delta_r1||90;
+  const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
+  let T=T0, dayIdx=0, playing=false, filterIntraday=false, hitboxes=[], hoverKey=null;
+  const D=()=>DATA.days[dayIdx];
+
+  // ---- palette pulled live from CSS tokens (re-read on theme change) ----
+  let P={};
+  function palette(){
+    const s=getComputedStyle(document.documentElement);
+    const g=n=>s.getPropertyValue(n).trim();
+    P={ink:g("--ink"),muted:g("--muted"),faint:g("--faint"),hair:g("--hair"),hair2:g("--hair2"),
+       panel:g("--panel"),panel2:g("--panel2"),firm:g("--firm"),tent:g("--tent"),done:g("--done"),
+       ghost:g("--ghost"),micro:g("--micro"),pickup:g("--pickup"),delivery:g("--delivery"),
+       direct:g("--direct"),depot:g("--depot"),frontier:g("--frontier"),frontierEdge:g("--frontier-edge"),
+       utilPal:g("--util-pal"),utilWt:g("--util-wt")};
+    const dk=document.documentElement.dataset.theme?document.documentElement.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
+    P.dwell=dk?"rgba(233,239,245,0.46)":"rgba(18,23,31,0.52)";
+    P.trunk=dk?"#2ab5ab":"#0e8f86";     // overnight/day trunk legs (network handover to the hub)
+  }
+  const TYPE_C=t=>({pickup:P.pickup,delivery:P.delivery,direct:P.direct}[t]||P.depot);
+  function font(){return "system-ui,-apple-system,Segoe UI,Roboto,sans-serif";}
+  function mono(){return "ui-monospace,Cascadia Code,SF Mono,Menlo,Consolas,monospace";}
+
+  // ---- geometry ----
+  const AXIS=46, LANE=16, HDR=24, THDR=24, GUT=136, RPAD=16, TOP=AXIS+8, TSEP=14;
+  const TOURX=11, TRUNKX=27, IDX=40;   // gutter indicator columns (⛺ tour, ⇅ trunk) + id start
+  let plotW=0, DPR=1, lanes=[], tlanes=[];
+  // depot first, then vehicle type (tractor -> rigid -> van), then id (user 2026-07-20).
+  function vtypeRank(t){ const o={tractor:0,rigid:1,van:2}; const k=String(t||"").toLowerCase();
+                         return (o[k]!=null)?o[k]:9; }
+  function byDepotThenType(a,b){
+    const ha=a.home||"~", hb=b.home||"~"; if(ha!==hb) return ha<hb?-1:1;
+    const ra=vtypeRank(a.type), rb=vtypeRank(b.type); if(ra!==rb) return ra-rb;
+    const ta=String(a.type||"").toLowerCase(), tb=String(b.type||"").toLowerCase();
+    if(ta!==tb) return ta<tb?-1:1;
+    return a.id<b.id?-1:a.id>b.id?1:0;
+  }
+  function vehicles(){   // vehicle rows grouped by home depot, a header row per group
+    const vs=(filterIntraday?D().vehicles.filter(v=>v.intraday):D().vehicles.slice())
+      .sort(byDepotThenType);
+    const rows=[]; let dep=null, hdrRow=null;
+    for(const v of vs){ const h=v.home||"(no depot)";
+      if(h!==dep){ hdrRow={hdr:h,n:0}; rows.push(hdrRow); dep=h; }
+      hdrRow.n++; rows.push(v); }
+    return rows;
+  }
+  function trunkLanes(){   // group the day's trunk legs into one lane per depot<->hub
+    const by={};
+    for(const t of (D().trunks||[])){ const k=t.depot+" ⇄ "+String(t.hub).replace("_HUB",""); (by[k]=by[k]||[]).push(t); }
+    return Object.keys(by).sort().map(k=>({label:k,legs:by[k]}));
+  }
+  const vehTop=()=>TOP+(tlanes.length?THDR+tlanes.length*LANE+TSEP:0);   // vehicle lanes start below the trunk section
+  function layout(){
+    lanes=vehicles(); tlanes=trunkLanes();
+    const cssW=cv.parentNode.clientWidth;
+    const cssH=computeRows()+14;
+    DPR=Math.min(2,window.devicePixelRatio||1);
+    cv.width=cssW*DPR; cv.height=cssH*DPR; cv.style.height=cssH+"px";
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    plotW=cssW-GUT-RPAD;
+  }
+  const x=m=>GUT+(Math.max(T0,Math.min(T1,m))-T0)/(T1-T0)*plotW;
+  const tLaneY=j=>TOP+THDR+j*LANE;
+  let rowY=[];                        // per-row y offsets (header rows are taller)
+  function computeRows(){ rowY=[]; let y=vehTop(); for(const r of lanes){ rowY.push(y); y+=r.hdr?HDR:LANE; } return y; }
+  const laneY=i=>rowY[i];
+  const hhmm=m=>{m=Math.round(m);return String(Math.floor(m/60)).padStart(2,"0")+":"+String(((m%60)+60)%60).padStart(2,"0");};
+
+  // the snapshot in effect at clock T = the last decision epoch <= T
+  function snapIdx(){ const sa=D().snapAt; let k=0; for(let i=0;i<sa.length;i++){ if(sa[i]<=T+0.01) k=i; } return k; }
+  function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+  function draw(){
+    if(!P.ink) palette();
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.textBaseline="middle";
+    const xn=x(T), xf2=x(T+DELTA_R1);            // only the 90-min commit-freeze frontier
+    ctx.fillStyle=P.frontier; ctx.fillRect(xn,AXIS,xf2-xn,cv.height);
+    ctx.strokeStyle=P.frontierEdge; ctx.lineWidth=1; ctx.setLineDash([2,3]);
+    ctx.beginPath();ctx.moveTo(xf2,AXIS);ctx.lineTo(xf2,cv.height);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=P.frontierEdge; ctx.font="9px "+mono(); ctx.textAlign="center";
+    ctx.fillText("+"+DELTA_R1,xf2,AXIS-2);
+    // hour grid
+    ctx.font="10px "+mono();
+    for(let h=Math.ceil(T0/60);h<=T1/60;h++){
+      const hx=x(h*60);
+      ctx.strokeStyle=P.hair2; ctx.beginPath();ctx.moveTo(hx,AXIS);ctx.lineTo(hx,cv.height);ctx.stroke();
+      ctx.fillStyle=P.faint; ctx.textAlign="center"; ctx.fillText(String(h).padStart(2,"0")+":00",hx,AXIS-24);
+    }
+    // decision epochs (micro labels thin out when the cadence packs them tighter
+    // than the text is wide — the ticks still mark every pass)
+    ctx.textAlign="center";
+    let lastLabX=-1e9;
+    for(const e of D().epochs){
+      const ex=x(e.m), lab=e.kind==="seed"?"seed":e.kind==="warm"?"re-opt":e.kind==="close"?"close":"micro";
+      const em=e.kind==="warm"||e.kind==="seed";
+      ctx.strokeStyle=em?P.firm:P.hair; ctx.lineWidth=em?1.5:1;
+      ctx.setLineDash(em?[]:[2,3]); ctx.beginPath();ctx.moveTo(ex,AXIS-14);ctx.lineTo(ex,cv.height);ctx.stroke();
+      ctx.setLineDash([]);
+      if(em || ex-lastLabX>=34){
+        ctx.fillStyle=em?P.firm:P.muted; ctx.font=(em?"600 ":"")+"9.5px "+font();
+        ctx.fillText(lab,ex,AXIS-11); lastLabX=ex;
+      }
+    }
+    // now line
+    ctx.strokeStyle=P.ink; ctx.lineWidth=1.5; ctx.beginPath();ctx.moveTo(xn,AXIS-14);ctx.lineTo(xn,cv.height);ctx.stroke();
+    ctx.fillStyle=P.ink; ctx.font="600 10px "+mono(); ctx.textAlign="left";
+    ctx.fillText("▸ "+hhmm(T),xn+4,AXIS-32);
+
+    const si=snapIdx(), jobs=D().jobs, snapEp=D().snapAt[si];
+    hitboxes=[];
+    // ---- trunk lanes (top): overnight = outbound tonight + return tomorrow AM; Stoke same-day ----
+    if(tlanes.length){                    // section header band, same treatment as depot groups
+      ctx.fillStyle=P.panel; ctx.fillRect(0,TOP+1,GUT+plotW+RPAD,THDR-2);
+      ctx.fillStyle=P.hair2; ctx.fillRect(0,TOP+3,GUT+plotW+RPAD,THDR-6);
+      ctx.fillStyle=P.trunk; ctx.fillRect(0,TOP+3,4,THDR-6);
+      const t1="⇅ HUB TRUNKS";
+      ctx.fillStyle=P.firm; ctx.textAlign="left"; ctx.font="800 11.5px "+font();
+      ctx.fillText(t1,10,TOP+THDR/2+1);
+      const w1=ctx.measureText(t1).width;
+      ctx.fillStyle=P.muted; ctx.font="600 9.5px "+font();
+      ctx.fillText("· "+tlanes.length+(tlanes.length===1?" service":" services")+" · nightly + Stoke day run",10+w1+8,TOP+THDR/2+1);
+    }
+    for(let j=0;j<tlanes.length;j++){
+      const tl=tlanes[j], y=tLaneY(j), cy=y+LANE/2;
+      ctx.fillStyle=(j%2)?P.panel2:"transparent"; ctx.fillRect(GUT-6,y,plotW+RPAD,LANE);
+      ctx.fillStyle=P.trunk; ctx.fillRect(GUT-6,y+2,2,LANE-4);
+      ctx.fillStyle=P.muted; ctx.textAlign="left"; ctx.font="9.5px "+font();
+      ctx.save(); ctx.beginPath(); ctx.rect(0,y,GUT-8,LANE); ctx.clip();
+      ctx.fillText("⇅ "+tl.label,8,cy); ctx.restore();
+      for(const leg of tl.legs){
+        const x0=x(leg.s), x1=x(leg.e), W=Math.max(5,x1-x0), isOut=leg.dir==="out", done=T>=leg.e;
+        ctx.globalAlpha=done?0.3:(isOut?0.92:0.5); ctx.fillStyle=P.trunk;
+        rr(x0,y+3,W,LANE-6,2); ctx.fill(); ctx.globalAlpha=1;
+        if(!isOut){ ctx.strokeStyle=P.trunk;ctx.lineWidth=1;ctx.setLineDash([2,2]);rr(x0,y+3,W,LANE-6,2);ctx.stroke();ctx.setLineDash([]); }
+        hitboxes.push({trunk:leg,label:tl.label,x:x0,y:y+3,w:W,h:LANE-6});
+      }
+    }
+    if(tlanes.length){ ctx.strokeStyle=P.hair; ctx.lineWidth=1; ctx.beginPath();
+      ctx.moveTo(GUT-6,vehTop()-TSEP/2+0.5);ctx.lineTo(GUT+plotW+RPAD-6,vehTop()-TSEP/2+0.5);ctx.stroke(); }
+    ctx.font="11px "+mono();
+    for(let i=0;i<lanes.length;i++){
+      const v=lanes[i], y=laneY(i), cy=y+LANE/2;
+      if(v.hdr){   // depot group header row — a strong full-width band
+        ctx.fillStyle=P.panel; ctx.fillRect(0,y+1,GUT+plotW+RPAD,HDR-2);
+        ctx.fillStyle=P.hair2; ctx.fillRect(0,y+3,GUT+plotW+RPAD,HDR-6);
+        ctx.fillStyle=P.firm; ctx.fillRect(0,y+3,4,HDR-6);
+        const nm=String(v.hdr).toUpperCase();
+        const t1=nm.startsWith("(")?nm:nm+" DEPOT";
+        ctx.fillStyle=P.firm; ctx.textAlign="left"; ctx.font="800 11.5px "+font();
+        ctx.fillText(t1,10,y+HDR/2+1);
+        const w1=ctx.measureText(t1).width;
+        ctx.fillStyle=P.muted; ctx.font="600 9.5px "+font();
+        ctx.fillText("· "+v.n+(v.n===1?" truck":" trucks"),10+w1+8,y+HDR/2+1);
+        ctx.font="11px "+mono();
+        continue;
+      }
+      const onTrunk=(v.trunks||[]).length>0;
+      ctx.fillStyle=(i%2)?P.panel2:"transparent"; ctx.fillRect(GUT-6,y,plotW+RPAD,LANE);
+      // dedicated indicator columns: ⛺ tour, ⇅ trunk — aligned across rows, not squeezed
+      // into the id text (so ids all start at the same x).
+      ctx.textAlign="center";
+      if(v.tour){ ctx.fillStyle=P.direct; ctx.fillText("⛺",TOURX,cy); }
+      if(onTrunk){ ctx.fillStyle=P.trunk; ctx.fillText("⇅",TRUNKX,cy); }
+      ctx.textAlign="left";
+      ctx.fillStyle=v.tour?P.direct:(v.intraday?P.ink:P.muted);
+      ctx.save(); ctx.beginPath(); ctx.rect(IDX,y,GUT-28-IDX,LANE); ctx.clip();
+      ctx.fillText(v.id.slice(0,11),IDX,cy); ctx.restore();
+      // vehicle-type chip (2026-07-21): aligned column at the gutter edge — the
+      // type-sorted groups read at a glance (T tractor / R rigid / V van), same
+      // palette as the map's Type filter.
+      const tk=String(v.type||"").toLowerCase(), tcol=TYPE_COL[tk];
+      if(tcol){ const tl=tk==="tractor"?"T":tk==="rigid"?"R":"V";
+        ctx.save(); ctx.globalAlpha=.22; ctx.fillStyle=tcol;
+        ctx.fillRect(GUT-24,cy-5.5,14,11); ctx.restore();
+        ctx.fillStyle=tcol; ctx.textAlign="center"; ctx.font="700 8.5px "+font();
+        ctx.fillText(tl,GUT-17,cy+.5); ctx.textAlign="left"; ctx.font="11px "+mono(); }
+      if(v.tour){ctx.fillStyle=P.direct;ctx.fillRect(GUT-6,y+2,2,LANE-4);}
+      else if(v.intraday){ctx.fillStyle=P.micro;ctx.fillRect(GUT-6,y+2,2,LANE-4);}
+      else if(onTrunk){ctx.fillStyle=P.trunk;ctx.fillRect(GUT-6,y+2,2,LANE-4);}
+      // this vehicle's route AS IT STOOD at the active snapshot
+      const stops=v.snaps[si]||[];
+      let prevD=null, prevTrip=null, tripStart=null;
+      for(const s of stops){
+        const ji=s[0], arr=s[1], dep=s[2], cf=s[3], tr=s[4], rf=s[5];
+        if(tr!==prevTrip){ prevD=null; prevTrip=tr; tripStart=null; }
+        const by=y+2.5, bh=LANE-5;
+        // depot -> first stop (ji=-2): fold the drive INTO the first order's coloured box
+        // (its drive-start = this entry's start), so the first order reads like every other.
+        if(ji===-2){ prevD=arr; tripStart=arr;
+          if(arr!=null){ const mx=x(arr)-6, my2=y+LANE/2;   // leaves the depot
+            ctx.globalAlpha=T>=arr?0.55:1; ctx.fillStyle=P.firm; ctx.beginPath();
+            ctx.moveTo(mx,my2-4); ctx.lineTo(mx+5.5,my2); ctx.lineTo(mx,my2+4);
+            ctx.closePath(); ctx.fill(); ctx.globalAlpha=1; }
+          continue; }
+        // return (ji=-1): grey deadhead drive [last_dep -> depot]
+        if(ji<0){
+          const g0=arr, g1=dep;
+          if(g0!=null && g1!=null){ const dn=T>=g1;
+            ctx.globalAlpha=dn?0.28:0.5; ctx.fillStyle=P.depot;
+            rr(x(g0)+1,by+3,Math.max(4,x(g1)-x(g0)-1),bh-6,2); ctx.fill(); ctx.globalAlpha=1;
+            const mx=x(g1), my2=y+LANE/2;                  // back at the depot
+            ctx.globalAlpha=dn?0.55:1; ctx.fillStyle=P.firm; ctx.beginPath();
+            ctx.moveTo(mx,my2-4); ctx.lineTo(mx-5.5,my2); ctx.lineTo(mx,my2+4);
+            ctx.closePath(); ctx.fill(); ctx.globalAlpha=1; }
+          prevD=g1; continue;
+        }
+        const job=jobs[ji]||{}; const a=(arr!=null?arr:dep), d=(dep!=null?dep:arr);
+        const ds=(prevD!=null?prevD:a);              // drive starts at the previous departure
+        if(tripStart==null) tripStart=ds;            // no depot leg -> the first stop's drive-start
+        const x0=x(ds), xa=x(a), x1=x(d), W=Math.max(6,x1-x0);
+        // A stop FREEZES the moment the clock reaches 90 min before its departure (T >= ds-90) —
+        // i.e. when the +90 frontier touches it. The ONE exception: a trip merely PARKED at the
+        // now+90 dispatch floor (route_start == epoch+90) is deferred work the re-opt keeps
+        // pushing (WT255229); it never really commits, so it must not show frozen.
+        const deferred=(tripStart!=null && Math.abs(tripStart-(snapEp+DELTA_R1))<3);
+        const active=(!!cf || !deferred);             // committed for real, OR not a parked/deferred trip
+        const done=(active && d!=null && T>=d);       // its time has passed = served
+        const firm=(active && !done && T>=ds-DELTA_R1);   // inside its 90-min freeze mark
+        const A=done?0.3:(firm?0.92:0.42);            // done dim · frozen solid · not-yet-frozen penciled
+        const tc=TYPE_C(job.ty);
+        ctx.globalAlpha=A; ctx.fillStyle=tc; rr(x0,by,W,bh,2); ctx.fill(); ctx.globalAlpha=1;
+        ctx.globalAlpha=done?0.5:1; ctx.fillStyle=P.dwell;
+        if(x1>xa+0.5){
+          if(job.ty==="direct"){       // direct carry: handling happens at BOTH ends —
+            const hw=(x1-xa)/2;        // load at the origin, unload at the destination
+            ctx.fillRect(x0,by+0.5,hw,bh-1);
+            ctx.fillRect(x1-hw,by+0.5,hw,bh-1);
+          } else {
+            ctx.fillRect(xa,by+0.5,x1-xa,bh-1);   // dwell (handling at the stop)
+          }
+        }
+        ctx.globalAlpha=1;
+        if(!firm && !done){ ctx.strokeStyle=tc;ctx.lineWidth=1.2;ctx.setLineDash([3,2]);rr(x0,by,W,bh,2);ctx.stroke();ctx.setLineDash([]); }
+        if(hoverKey===v.id+"#"+tr+"#"+ji){ctx.strokeStyle=P.ink;ctx.lineWidth=1.5;rr(x0-1,by-1,W+2,bh+2,3);ctx.stroke();}
+        // markers: red = newly inserted (order arrived after the seed); green = re-optimised
+        // (its vehicle/trip/time changed this epoch). Stacked so both show on the same order.
+        if(job.new){ ctx.fillStyle="#e5484d"; ctx.beginPath(); ctx.arc(xa+3,by+3,2.2,0,6.2832); ctx.fill(); }
+        if(rf){ ctx.fillStyle="#f5a623"; ctx.beginPath(); ctx.arc(xa+3,by+bh-3,2.2,0,6.2832); ctx.fill(); }
+        hitboxes.push({x:x0,y:by,w:W,h:bh,job:job,vid:v.id,arr:a,dep:d,firm:firm,done:done,tr:tr,ji:ji,drive:Math.max(0,a-ds),isnew:!!job.new,reopt:!!rf});
+        prevD=d;
+      }
+      // ---- multi-day TOUR overlay: seed-committed work outside the snapshot stream ----
+      // continuity band: the truck is AWAY the whole time, not just at its stops —
+      // day 1 runs from departure to midnight, middle days span the full day.
+      {
+        const real=(v.tsegs||[]).filter(g=>!g.ret);
+        if(real.length){
+          const isD1=real.some(g=>g.d1), goesOn=real.some(g=>g.cont);
+          const b0=isD1?Math.min(...real.map(g=>g.s)):T0;
+          const b1=goesOn?T1:Math.max(...real.map(g=>g.e));
+          ctx.globalAlpha=0.32; ctx.fillStyle=P.direct;
+          ctx.fillRect(x(b0),y+LANE/2-1.5,Math.max(4,x(b1)-x(b0)),3);
+          ctx.globalAlpha=1;
+        }
+      }
+      for(const tg of (v.tsegs||[])){
+        if(tg.ret){                          // return day with no timed stop: marker only
+          const mx=GUT+12, my2=y+LANE/2;
+          ctx.fillStyle=P.firm; ctx.beginPath();
+          ctx.moveTo(mx,my2-4); ctx.lineTo(mx-5.5,my2); ctx.lineTo(mx,my2+4); ctx.closePath(); ctx.fill();
+          ctx.fillStyle=P.muted; ctx.font="600 8.5px "+font(); ctx.textAlign="left";
+          ctx.fillText("tour returns to depot · day "+tg.k+"/"+tg.n, mx+7, my2+0.5);
+          ctx.font="11px "+mono();
+          hitboxes.push({tourret:tg,x:mx-8,y:y+2,w:150,h:LANE-4,vid:v.id});
+          continue;
+        }
+        const tx0=x(tg.s), tx1=x(tg.e), tW=Math.max(6,tx1-tx0), tby=y+2.5, tbh=LANE-5;
+        ctx.globalAlpha=0.92; ctx.fillStyle=P.direct; rr(tx0,tby,tW,tbh,2); ctx.fill(); ctx.globalAlpha=1;
+        if(tg.d1){ const mx=tx0-6, my2=y+LANE/2;      // the tour leaves its depot today
+          ctx.fillStyle=P.firm; ctx.beginPath();
+          ctx.moveTo(mx,my2-4); ctx.lineTo(mx+5.5,my2); ctx.lineTo(mx,my2+4); ctx.closePath(); ctx.fill(); }
+        if(tg.cont){                          // continues overnight into the next day page
+          ctx.fillStyle=P.direct; ctx.font="700 11px "+mono(); ctx.textAlign="left";
+          ctx.fillText("»",GUT+plotW+RPAD-15,y+LANE/2+1); ctx.font="11px "+mono(); }
+        hitboxes.push({tourseg:tg,x:tx0,y:tby,w:tW,h:tbh,vid:v.id});
+      }
+      // ---- trunk run assigned to THIS tractor (gap 5): the night hub shuttle renders
+      // on the vehicle's own lane, after its customer day. solid=outbound, dashed=return.
+      for(const tk of (v.trunks||[])){
+        const kx0=x(tk.s), kx1=x(tk.e), kW=Math.max(5,kx1-kx0), kby=y+2.5, kbh=LANE-5;
+        const isOut=tk.dir==="out", kdone=T>=tk.e;
+        ctx.globalAlpha=kdone?0.3:(isOut?0.92:0.5); ctx.fillStyle=P.trunk;
+        rr(kx0,kby,kW,kbh,2); ctx.fill(); ctx.globalAlpha=1;
+        if(!isOut){ ctx.strokeStyle=P.trunk;ctx.lineWidth=1;ctx.setLineDash([2,2]);rr(kx0,kby,kW,kbh,2);ctx.stroke();ctx.setLineDash([]); }
+        hitboxes.push({trunk:tk,label:tk.depot+" ⇄ "+String(tk.hub).replace("_HUB",""),
+                       x:kx0,y:kby,w:kW,h:kbh,vid:v.id});
+      }
+    }
+    updateCounters(si);
+  }
+
+  function updateCounters(si){
+    const known=new Set(); let placed=0,tent=0,firm=0,done=0;
+    const jobs=D().jobs, snapEp=D().snapAt[si];
+    for(const v of D().vehicles){
+      let prevD=null, prevTrip=null, tripStart=null;
+      for(const s of (v.snaps[si]||[])){
+        const ji=s[0], arr=s[1], dep=s[2], tr=s[4];
+        if(tr!==prevTrip){ prevD=null; prevTrip=tr; tripStart=null; }
+        if(ji===-2){ prevD=arr; tripStart=arr; continue; }
+        if(ji<0){ prevD=dep; continue; }
+        const a=(arr!=null?arr:dep), d=(dep!=null?dep:arr);
+        const ds=(prevD!=null?prevD:a);
+        if(tripStart==null) tripStart=ds;
+        const deferred=(tripStart!=null && Math.abs(tripStart-(snapEp+DELTA_R1))<3);
+        const job=jobs[ji]||{};
+        if(T>=job.bk && job.o) known.add(job.o);
+        placed++;
+        if(!deferred && d!=null && T>=d) done++; else if(!deferred && T>=ds-DELTA_R1) firm++; else tent++;
+        prevD=d;
+      }
+    }
+    set("c_known",known.size); set("c_placed",placed);
+    set("c_tent",tent); set("c_firm",firm); set("c_done",done);
+    document.getElementById("clk").textContent=hhmm(T);
+    const sa=D().snapAt, sk=D().snapKind;
+    const kName={seed:"03:00 seed",warm:"noon re-opt",micro:"micro-insert"}[sk[si]]||sk[si];
+    document.getElementById("epk").innerHTML="plan as of <b>"+hhmm(sa[si])+"</b> · "+kName;
+  }
+  function set(id,v){document.getElementById(id).textContent=v;}
+
+  function dayLabel(iso){ try{return new Date(iso+"T00:00").toLocaleDateString("en-GB",
+    {weekday:"short",day:"numeric",month:"short",year:"numeric"});}catch(e){return iso;} }
+  function renderDayNav(){
+    document.getElementById("dayDate").textContent=dayLabel(D().day);
+    document.getElementById("dayPg").textContent="day "+(dayIdx+1)+" / "+DATA.days.length;
+    document.getElementById("prevDay").disabled=dayIdx<=0;
+    document.getElementById("nextDay").disabled=dayIdx>=DATA.days.length-1;
+  }
+  function gotoDay(i){ i=Math.max(0,Math.min(DATA.days.length-1,i)); if(i===dayIdx)return;
+    dayIdx=i; T=T0; hoverKey=null; tip.style.opacity=0; renderDayNav(); layout(); draw();
+    // an open map must follow the day switch too (arrow keys / board nav used to
+    // leave it showing the previous day's routes and dots under the new day label)
+    if(mapIsOpen()){ mapNeedsFit=true; buildSidebar(); mapRedraw(); } }
+
+  // ---- interaction ----
+  function setTfromX(clientX){
+    const r=cv.getBoundingClientRect(), px=clientX-r.left;
+    T=Math.max(T0,Math.min(T1,T0+(px-GUT)/plotW*(T1-T0))); draw();
+  }
+  let dragging=false;
+  cv.addEventListener("pointerdown",e=>{
+    const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
+    if(px<GUT){ const vid=vehicleAtY(py); if(vid){ openMap(vid); return; } }   // click a truck name -> its map
+    dragging=true;stopPlay();cv.setPointerCapture(e.pointerId);setTfromX(e.clientX);});
+  cv.addEventListener("pointermove",e=>{ if(dragging){setTfromX(e.clientX);}
+    else { hover(e); const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
+           cv.style.cursor=(px<GUT && vehicleAtY(py))?"pointer":"ew-resize"; } });
+  cv.addEventListener("pointerup",()=>{dragging=false;});
+  cv.addEventListener("pointerleave",()=>{tip.style.opacity=0;hoverKey=null;});
+
+  function hover(e){
+    const r=cv.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    let hit=null;
+    for(const h of hitboxes){ if(mx>=h.x-2&&mx<=h.x+h.w+2&&my>=h.y-1&&my<=h.y+h.h+1){hit=h;break;} }
+    const key=hit?(hit.trunk?"T#"+hit.label+"#"+hit.trunk.dir+"#"+(hit.vid||""):hit.tourseg?"TS#"+hit.vid+"#"+hit.tourseg.s:hit.tourret?"TR#"+hit.vid:hit.vid+"#"+hit.tr+"#"+hit.ji):null;
+    if(key!==hoverKey){hoverKey=key;draw();}
+    if(!hit){tip.style.opacity=0;return;}
+    if(hit.tourseg||hit.tourret){
+      const g=hit.tourseg||hit.tourret;
+      tip.innerHTML=`<div class="o">⛺ Multi-day tour · day ${g.k}/${g.n} · ${esc(hit.vid)}</div>`+
+        (g.ty?`<div class="row"><span>leg</span><span>${esc(g.ty)}</span></div>`:"")+
+        (g.pc?`<div class="row"><span>stop</span><span>${esc(g.pc)}</span></div>`:"")+
+        (g.o?`<div class="row"><span>order</span><span>${esc(g.o)}</span></div>`:"")+
+        (g.s!=null?`<div class="row"><span>window</span><span>${hhmm(g.s)}–${hhmm(g.e)}</span></div>`:"")+
+        `<div class="row"><span>state</span><span>${hit.tourret?"returns to depot today":"committed at seed — never re-planned"}</span></div>`;
+      tip.style.opacity=1;
+      let tx3=e.clientX+14, ty3=e.clientY+14;
+      if(tx3+300>innerWidth) tx3=e.clientX-314;
+      if(ty3+150>innerHeight) ty3=e.clientY-160;
+      tip.style.left=tx3+"px"; tip.style.top=ty3+"px"; return;
+    }
+    if(hit.trunk){
+      const t=hit.trunk, dir=t.dir==="out"?"outbound → hub":"return ← hub";
+      tip.innerHTML=`<div class="o">Trunk · ${esc(hit.label)}</div>`+
+        (hit.vid?`<div class="row"><span>vehicle</span><span>${esc(hit.vid)} · assigned by draw</span></div>`:"")+
+        `<div class="row"><span>leg</span><span>${esc(dir)}${t.day_trunk?" · same-day":""}</span></div>`+
+        `<div class="row"><span>window</span><span>${hhmm(t.s)}–${hhmm(t.e)}</span></div>`+
+        (hit.vid?"":`<div class="row"><span>tractors</span><span>${t.trips} unassigned trip${t.trips>1?"s":""}</span></div>`)+
+        `<div class="row"><span>pallets</span><span>${t.pal}${hit.vid?" (this trip)":""}</span></div>`;
+      tip.style.opacity=1;
+      let tx2=e.clientX+14, ty2=e.clientY+14;
+      if(tx2+300>innerWidth) tx2=e.clientX-314;
+      if(ty2+150>innerHeight) ty2=e.clientY-160;
+      tip.style.left=tx2+"px"; tip.style.top=ty2+"px"; return;
+    }
+    tip.innerHTML=jobTipHTML(hit.job,hit); placeTip(e.clientX,e.clientY);
+  }
+  function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+  // the per-stop detail popup, shared by the board lanes AND the map's bottom strip
+  function jobTipHTML(j,hit){
+    const tyName={pickup:"Pickup",delivery:"Delivery",direct:"Direct carry"}[j.ty]||j.ty;
+    const stName=hit.done?"completed":(hit.firm?"committed to driver":"uncommitted (can still move)");
+    // a direct carry reads origin -> destination; a stop with no geocoded postcode
+    // (upstream data gap) falls back to its order name rather than a raw id.
+    const loc=(j.ty==="direct"&&j.pco)?esc(j.pco)+" → "+esc(j.pc||"—"):esc(j.pc||j.nm||j.o||"—");
+    const marks=[]; if(hit.isnew)marks.push('<span style="color:#e5484d">● newly inserted</span>');
+    if(hit.reopt)marks.push('<span style="color:#f5a623">● re-optimised</span>');
+    return `<div class="o">${tyName} · ${loc}</div>`+
+      `<div class="row nm"><span>order</span><span>${esc(j.nm||j.o||"—")}</span></div>`+
+      (marks.length?`<div class="row"><span>change</span><span>${marks.join(" ")}</span></div>`:"")+
+      `<div class="row"><span>truck</span><span>${esc(hit.vid)}</span></div>`+
+      `<div class="row"><span>booked</span><span>${j.bk>0?hhmm(j.bk):"before today"}</span></div>`+
+      `<div class="row"><span>scheduled</span><span>${hit.arr!=null?hhmm(hit.arr):"—"}${hit.dep!=null?"–"+hhmm(hit.dep):""}</span></div>`+
+      `<div class="row"><span>pallets</span><span>${j.pallets>0?j.pallets:"—"}</span></div>`+
+      `<div class="row"><span>weight</span><span>${j.kg>0?Number(j.kg).toLocaleString()+" kg":"—"}</span></div>`+
+      `<div class="row"><span>drive · dwell</span><span>${Math.round(hit.drive||0)}m · ${(hit.arr!=null&&hit.dep!=null)?Math.round(hit.dep-hit.arr):0}m</span></div>`+
+      `<div class="row"><span>state now</span><span>${stName}</span></div>`;
+  }
+  function placeTip(clientX,clientY){ tip.style.opacity=1;
+    let tx=clientX+14, ty=clientY+14;
+    if(tx+300>innerWidth) tx=clientX-314;
+    if(ty+190>innerHeight) ty=clientY-200;
+    tip.style.left=tx+"px"; tip.style.top=ty+"px"; }
+
+  // ================= MAP OVERLAY (opens on a truck-name click) =================
+  // The map reconstructs a vehicle's route for the snapshot in effect at the clock
+  // (MAPLOGIC.routePolyline over the baked OSRM geometry), so it re-forms as the plan
+  // re-optimizes. Route math lives in viz_timeline_maplogic.cjs (Node-tested); this is
+  // the Leaflet rendering glue.
+  const mapWrap=document.getElementById("mapWrap");
+  const depotsByName={}; (DATA.depots||[]).forEach(d=>{depotsByName[d.name]=d;});
+  const GEOM=DATA.geom||{};
+  let lmap=null, focusVeh=null, mLayer=null, mapNeedsFit=false;
+  let mapView="dynamic", showOthers=false;   // dynamic = real-time greying; static = full blueprint
+  let showAll=false;                          // all-routes overlay: every vehicle's full-day shape, one colour each
+  let allMode="veh";                          // all-routes colouring: veh | type | flow | depot (2026-07-21)
+  const TYPE_COL={tractor:"#f2a93b",rigid:"#3fd0a4",van:"#5aa2f7"};
+  const DEPOT_COL={CB22:"#5aa2f7",BEDFORD:"#3fd0a4",STOKE:"#f2793b",ST_IVES:"#c98bf7"};
+  const FLOW_COL={PL_IMPORT:"#5aa2f7",PL_EXPORT:"#f2a93b",FULL_FLEET:"#b07df7",
+                  LOCAL_COLLECT:"#3fd0a4",LOCAL_DELIVER:"#f2635f"};
+  function vehHue(id){ let h=0; for(let i=0;i<id.length;i++) h=(h*31+id.charCodeAt(i))%360; return h; }
+  function vehById(id){ return D().vehicles.find(v=>v.id===id)||null; }
+  function vehicleAtY(py){
+    for(let i=0;i<lanes.length;i++){ const y=laneY(i), h=lanes[i].hdr?HDR:LANE;
+      if(py>=y&&py<y+h) return lanes[i].hdr?null:lanes[i].id; }
+    return null;
+  }
+  function mstopIcon(seq,ty,color){
+    const shape=ty==="pickup"?"border-radius:50%":ty==="direct"?"transform:rotate(45deg)":"";
+    const unrot=ty==="direct"?"transform:rotate(-45deg)":"";
+    return L.divIcon({className:"",iconSize:[20,20],iconAnchor:[10,10],
+      html:'<div class="mstop" style="background:'+color+';'+shape+'"><span style="'+unrot+'">'+seq+'</span></div>'});
+  }
+  function initMap(){
+    lmap=L.map("map",{zoomControl:true,attributionControl:false});
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:19,subdomains:"abcd"}).addTo(lmap);
+    mLayer=L.layerGroup().addTo(lmap);
+  }
+  // the vehicle's COMPLETE full-day plan = the last snapshot that still holds real stops
+  // (the final re-optimised route), independent of the clock. Used by the all-routes overlay.
+  function fullDaySnap(v){
+    for(let i=(v.snaps||[]).length-1;i>=0;i--){ const s=v.snaps[i]||[];
+      if(s.some(st=>st[0]>=0)) return s; }
+    return (v.snaps||[])[(v.snaps||[]).length-1]||[];
+  }
+  // All-routes overlay (2026-07-20; filters 2026-07-21): every vehicle's whole-day
+  // route, view-only. Colouring modes: veh (one hue each) · type (vehicle type) ·
+  // depot (home depot) · flow (routes faint, each SERVICE POINT dotted in its flow
+  // colour — the destination-centric view).
+  function allRouteColor(v){
+    if(allMode==="type")  return TYPE_COL[String(v.type||"").toLowerCase()]||"#9aa3ad";
+    if(allMode==="depot") return DEPOT_COL[String(v.home||"").toUpperCase()]||"#9aa3ad";
+    if(allMode==="flow")  return "#7b848d";
+    return "hsl("+vehHue(v.id)+",72%,55%)";
+  }
+  function renderAllLegend(){
+    const el=document.getElementById("mapAllLegend"), stock=document.querySelector(".maplegend:not(#mapAllLegend)");
+    if(!el) return;
+    if(!showAll){ el.style.display="none"; if(stock) stock.style.display=""; return; }
+    const pal=allMode==="type"?TYPE_COL:allMode==="depot"?DEPOT_COL:allMode==="flow"?FLOW_COL:null;
+    if(!pal){ el.style.display="none"; if(stock) stock.style.display=""; return; }
+    if(stock) stock.style.display="none";
+    const shape=allMode==="flow"?"border-radius:50%":"";
+    el.innerHTML=Object.entries(pal).map(([k,c])=>
+      '<div class="grp"><span class="d" style="background:'+c+';'+shape+'"></span>'+k.toLowerCase().replace("_"," ")+'</div>').join("");
+    el.style.display="";
+  }
+  function drawAllRoutes(){
+    const all=[]; let n=0;
+    const flowMode=(allMode==="flow");
+    const lineOpts=c=>({color:c,weight:flowMode?1.5:2.5,opacity:flowMode?.18:.72,interactive:false});
+    const dotted=new Set();
+    for(const v of D().vehicles){ if(v.hdr) continue;
+      const color=allRouteColor(v); let drew=false;
+      const snap=fullDaySnap(v);
+      const line=MAPLOGIC.routePolyline(GEOM,D(),v,snap,depotsByName);
+      if(line.length){ L.polyline(line,lineOpts(color)).addTo(mLayer);
+        for(const p of line) all.push(p); drew=true; }
+      const td=v.tourDay||null;                          // a tour vehicle's day-leg lives outside snaps
+      if(td){ for(const sg of MAPLOGIC.segmentsFromNodes(GEOM,MAPLOGIC.tourDayNodes(GEOM,td))){
+        if(!sg.poly.length) continue;
+        L.polyline(sg.poly,lineOpts(color)).addTo(mLayer);
+        for(const p of sg.poly) all.push(p); drew=true; } }
+      if(flowMode){                                      // flow view: colour the service points
+        for(const st of snap){ const ji=st[0]; if(ji<0||dotted.has(ji)) continue; dotted.add(ji);
+          const j=D().jobs[ji]; if(!j||!j.lat||!j.lon) continue;
+          const c=FLOW_COL[String(j.fl||"").toUpperCase()]||"#9aa3ad";
+          L.circleMarker([j.lat,j.lon],{radius:4.5,color:"#10141a",weight:1,fillColor:c,
+            fillOpacity:.95,interactive:false}).addTo(mLayer);
+          all.push([j.lat,j.lon]); }
+        if(td) for(const s of (td.stops||[])){ if(!s.lat||!s.lon) continue;
+          L.circleMarker([s.lat,s.lon],{radius:4.5,color:"#10141a",weight:1,
+            fillColor:"#b07df7",fillOpacity:.95,interactive:false}).addTo(mLayer); }
+      }
+      if(drew) n++;
+    }
+    if(mapNeedsFit){ if(all.length) lmap.fitBounds(L.latLngBounds(all).pad(.12)); else lmap.setView([52.2,0.0],7);
+      mapNeedsFit=false; }
+    renderAllLegend();
+    const label={veh:"one colour per vehicle",type:"coloured by vehicle type",
+                 flow:"service points coloured by flow",depot:"coloured by home depot"}[allMode];
+    document.getElementById("mapWho").textContent="All routes";
+    document.getElementById("mapMeta").textContent=n+" vehicles · "+label+" (view only)";
+  }
+  function drawMap(){
+    if(!lmap) return;
+    mLayer.clearLayers();
+    (DATA.depots||[]).forEach(d=>{
+      L.marker([d.lat,d.lon],{icon:L.divIcon({className:"",iconSize:[13,13],iconAnchor:[6,6],html:'<div class="mdepot"></div>'})})
+        .bindTooltip("Depot "+d.name).addTo(mLayer);
+    });
+    if(showAll){ drawAllRoutes(); return; }
+    const v=vehById(focusVeh); if(!v){return;}
+    const si=snapIdx(), snap=v.snaps[si]||[], jobs=D().jobs, snapEp=D().snapAt[si];
+    // commitment via the board's 90-min frontier (map & board agree), NOT the raw snapshot flag
+    const flags=MAPLOGIC.commitFlags(snap,snapEp,DELTA_R1,T);
+    const cSnap=MAPLOGIC.committedSnap(snap,flags);
+    if(showOthers){    // faint fleet context (button currently hidden; state kept for re-enable)
+      for(const ov of D().vehicles){ if(ov.hdr||ov.id===v.id) continue;
+        const os=ov.snaps[si]||[], ocs=MAPLOGIC.committedSnap(os,MAPLOGIC.commitFlags(os,snapEp,DELTA_R1,T));
+        const oline=MAPLOGIC.routePolyline(GEOM,D(),ov,ocs,depotsByName);
+        if(oline.length) L.polyline(oline,{color:P.done,weight:2,opacity:.28,interactive:false}).addTo(mLayer);
+      }
+    }
+    // the route as per-LEG-TYPE segments (same palette as the board's job blocks): each
+    // drive is coloured by the job it serves. On the COMMITTED route this reads as a real-time
+    // view — legs the truck has already finished (clock past their arrival) grey out. The
+    // switch brings the committed plan or the optimizer's internal (dashed) tail to the front.
+    // internalLine is kept only to frame the map when it opens.
+    const internalLine=MAPLOGIC.routePolyline(GEOM,D(),v,snap,depotsByName);
+    const dyn=(mapView!=="static");     // dynamic = grey completed legs (real-time); static = full colour
+    const segs=MAPLOGIC.routeSegments(GEOM,D(),v,snap,flags,depotsByName);
+    // TWO passes so the committed CURRENT route is always the frontal layer (later = on top in
+    // Leaflet): tentative insertions (the uncommitted tail) go UNDERNEATH; the committed route,
+    // which the clock/truck is actually executing, draws on top so a new insertion never covers it.
+    for(const sg of segs){ if(sg.committed||!sg.poly.length) continue;                 // pass 1: tentative, beneath
+      L.polyline(sg.poly,{color:TYPE_C(sg.ty),weight:3,opacity:.5,dashArray:"5,7",interactive:false}).addTo(mLayer); }
+    for(const sg of segs){ if(!sg.committed||!sg.poly.length) continue;                // pass 2: committed, on top
+      const doneSeg=dyn && sg.arr!=null && T>=sg.arr;                                  // finished drive (dynamic only)
+      L.polyline(sg.poly,{color:doneSeg?P.done:TYPE_C(sg.ty),weight:4,opacity:doneSeg?.34:.95,interactive:false}).addTo(mLayer); }
+    let seq=0, ncommit=0; const pts=[];
+    for(let i=0;i<snap.length;i++){ const st=snap[i], ji=st[0]; if(ji<0) continue;
+      const j=jobs[ji]; if(!j||!MAPLOGIC.hasCoord(j.lat,j.lon)) continue;
+      seq++; const cf=flags[i]; if(cf) ncommit++;
+      const stDone=dyn && cf && T>=(st[2]!=null?st[2]:(st[1]!=null?st[1]:T));   // committed AND passed (dynamic only)
+      // a DIRECT carry: mark its collect ORIGIN (freight picked up there, delivered at the number)
+      if(j.ty==="direct" && MAPLOGIC.hasCoord(j.clat,j.clon))
+        L.marker([j.clat,j.clon],{icon:L.divIcon({className:"",iconSize:[9,9],iconAnchor:[4.5,4.5],html:'<div class="mcollect"></div>'}),opacity:stDone?.4:(cf?.95:.5)})
+          .bindTooltip("collect · "+esc(j.pco||"—"),{direction:"top"}).addTo(mLayer);
+      L.marker([j.lat,j.lon],{icon:mstopIcon(seq,j.ty,stDone?P.done:TYPE_C(j.ty)),opacity:stDone?.6:(cf?1:.5)})
+        .bindPopup("<b>#"+seq+" "+esc(j.ty)+"</b><br>"+esc(j.nm||j.o||"—")+"<br>"+
+          (j.ty==="direct"&&j.pco?esc(j.pco)+" → "+esc(j.pc||"—"):esc(j.pc||"—"))+
+          "<br>arr "+(st[1]!=null?hhmm(st[1]):"—")+" · dep "+(st[2]!=null?hhmm(st[2]):"—")+
+          "<br>"+(stDone?"completed":cf?"committed to driver":"uncommitted (can still move)")).addTo(mLayer);
+      pts.push([j.lat,j.lon]);
+    }
+    // this day's TOUR leg: tours are seed-committed & immutable and live OUTSIDE the snapshot
+    // stream, SPLIT BY DAY — so the map draws only today's leg (depot-out on day 1, resume-from-
+    // overnight on a later day, a depot return only on the LAST day; otherwise it stays out).
+    // Same per-type colours + the same puck machinery as a normal route, via tourDayNodes.
+    const td=v.tourDay||null; let tourNodes=null;
+    if(td){
+      tourNodes=MAPLOGIC.tourDayNodes(GEOM,td);
+      for(const sg of MAPLOGIC.segmentsFromNodes(GEOM,tourNodes)){ if(!sg.poly.length) continue;
+        const done=dyn && sg.arr!=null && T>=sg.arr;                                  // finished drive (dynamic)
+        L.polyline(sg.poly,{color:done?P.done:TYPE_C(sg.ty),weight:4,opacity:done?.34:.95,interactive:false}).addTo(mLayer); }
+      // the overnight carry-in point a later day resumes from — faint, NOT a numbered stop
+      if(td.resume && MAPLOGIC.hasCoord(td.resume[0],td.resume[1])){
+        L.marker(td.resume,{icon:L.divIcon({className:"",iconSize:[11,11],iconAnchor:[5.5,5.5],html:'<div class="mcollect"></div>'}),opacity:.75})
+          .bindTooltip("stayed overnight here",{direction:"top"}).addTo(mLayer); pts.push(td.resume); }
+      // where THIS day's driving ends: the mid-leg sleep point (tour_overnight row)
+      if(td.park && MAPLOGIC.hasCoord(td.park[0],td.park[1])){
+        L.marker(td.park,{icon:L.divIcon({className:"",iconSize:[11,11],iconAnchor:[5.5,5.5],html:'<div class="mcollect"></div>'}),opacity:.75})
+          .bindTooltip("sleeps here overnight",{direction:"top"}).addTo(mLayer); pts.push(td.park); }
+      let tseq=0;
+      for(const s of (td.stops||[])){ if(!MAPLOGIC.hasCoord(s.lat,s.lon)) continue;
+        const done=dyn && s.dep!=null && T>=s.dep;
+        if(s.ty==="direct" && MAPLOGIC.hasCoord(s.clat,s.clon))
+          L.marker([s.clat,s.clon],{icon:L.divIcon({className:"",iconSize:[9,9],iconAnchor:[4.5,4.5],html:'<div class="mcollect"></div>'}),opacity:done?.4:.95})
+            .bindTooltip("collect · "+esc(s.pc||"—"),{direction:"top"}).addTo(mLayer);
+        tseq++;
+        L.marker([s.lat,s.lon],{icon:mstopIcon(tseq,s.ty,done?P.done:TYPE_C(s.ty)),opacity:done?.6:1})
+          .bindPopup("<b>⛺ tour #"+tseq+" "+esc(s.ty)+"</b><br>day "+td.k+"/"+td.n+"<br>"+
+            esc(s.o||"—")+"<br>"+esc(s.pc||"—")+"<br>arr "+(s.arr!=null?hhmm(s.arr):"—")+" · dep "+(s.dep!=null?hhmm(s.dep):"—")).addTo(mLayer);
+        pts.push([s.lat,s.lon]);
+      }
+      if(td.depot && MAPLOGIC.hasCoord(td.depot[0],td.depot[1])) pts.push(td.depot);   // frame the whole leg
+    }
+    // simulated truck (bright hollow ring): along today's TOUR leg on a tour day, else the committed route
+    const tp=tourNodes ? MAPLOGIC.posAlongNodes(GEOM,tourNodes,T)
+                       : MAPLOGIC.truckPos(GEOM,D(),v,cSnap,T,depotsByName);
+    if(tp) L.marker(tp,{icon:L.divIcon({className:"",iconSize:[15,15],iconAnchor:[7.5,7.5],html:'<div class="mtruck"></div>'}),zIndexOffset:1000})
+      .bindTooltip(v.id+" · "+hhmm(T),{direction:"top"}).addTo(mLayer);
+    // fit only when opening / switching vehicle — never on a clock tick (would jitter during play)
+    if(mapNeedsFit){ const all=(internalLine.length?internalLine:pts);
+      if(all.length) lmap.fitBounds(L.latLngBounds(all).pad(.15)); else lmap.setView([52.2,0.0],8);
+      mapNeedsFit=false; }
+    document.getElementById("mapWho").textContent=v.id;
+    document.getElementById("mapMeta").textContent=(v.home||"")+" · plan as of "+hhmm(snapEp)+
+      (td?" · ⛺ tour day "+td.k+"/"+td.n+(td.endDepot?" · returns to depot today":" · stays out overnight")
+         :" · "+seq+" stops ("+ncommit+" committed)");
+  }
+  // ---- map-mode sidebar: the vehicle list (depot-grouped), select without leaving the map ----
+  const sideList=document.getElementById("mapSideList");
+  function buildSidebar(){
+    const vs=D().vehicles.filter(v=>!v.hdr).slice().sort(byDepotThenType);
+    let html="", dep=null;
+    for(const v of vs){ const h=v.home||"(no depot)";
+      if(h!==dep){ html+='<div class="svgrp">'+esc(h)+'</div>'; dep=h; }
+      const ic=v.tour?"⛺":((v.trunks||[]).length?"⇅":"");
+      const tc=TYPE_COL[String(v.type||"").toLowerCase()]||"#666";
+      html+='<div class="svitem'+(v.id===focusVeh?" on":"")+'" data-vid="'+esc(v.id)+'" title="'+esc(v.type||"")+'">'+
+            '<span class="ic">'+ic+'</span><span class="tdot" style="background:'+tc+'"></span>'+
+            '<span class="vid">'+esc(v.id)+'</span></div>';
+    }
+    sideList.innerHTML=html;
+    sideList.querySelectorAll(".svitem").forEach(el=>el.onclick=()=>{
+      if(el.dataset.vid===focusVeh) return;
+      focusVeh=el.dataset.vid; mapNeedsFit=true; buildSidebar(); mapRedraw(); });
+    document.getElementById("mapSideDate").textContent=dayLabel(D().day);
+    document.getElementById("mapPrevDay").disabled=dayIdx<=0;
+    document.getElementById("mapNextDay").disabled=dayIdx>=DATA.days.length-1;
+  }
+
+  // ---- Board <-> Map modes (parallel; the toggle lives in both chromes) ----
+  const boardWrap=document.querySelector(".wrap");
+  function mapIsOpen(){ return mapWrap.classList.contains("open"); }
+  function setMode(m){
+    const on=(m==="map");
+    if(on && typeof L==="undefined") return;            // Leaflet unavailable (offline) — stay on board
+    mapWrap.classList.toggle("open",on); mapWrap.setAttribute("aria-hidden",on?"false":"true");
+    boardWrap.style.display=on?"none":"";
+    document.querySelectorAll(".modeswitch button[data-mode]").forEach(el=>el.classList.toggle("on",el.dataset.mode===m));
+    if(on){
+      if(!focusVeh){ const fv=D().vehicles.find(v=>!v.hdr&&(v.snaps||[]).some(s=>s.length)); focusVeh=fv?fv.id:((D().vehicles[0]||{}).id); }
+      stopPlay(); mapNeedsFit=true; if(!lmap) initMap(); buildSidebar();
+      setTimeout(()=>{ if(lmap) lmap.invalidateSize(); mapRedraw(); },30);
+    } else { tip.style.opacity=0;
+      // the board canvas is sized from its container width, which is 0 while hidden — so a
+      // day change made in map mode (gotoDay -> layout) zeroed it. Re-size + redraw now that
+      // the board is visible again, else it comes back blank until the next redraw.
+      layout(); draw();
+    }
+  }
+  function openMap(vid){ focusVeh=vid; setMode("map"); }   // board vehicle-name click shortcut
+  document.querySelectorAll(".modeswitch button[data-mode]").forEach(el=>el.onclick=()=>setMode(el.dataset.mode));
+  document.getElementById("mapPrevDay").onclick=()=>gotoDay(dayIdx-1);
+  document.getElementById("mapNextDay").onclick=()=>gotoDay(dayIdx+1);
+  addEventListener("keydown",e=>{ if(e.key==="Escape"&&mapIsOpen()) setMode("board"); });
+
+  // ---- bottom time strip (HOVER a block for detail) + a separate clock SLIDER below it ----
+  const strip=document.getElementById("mapStrip"), sctx=strip.getContext("2d");
+  const slider=document.getElementById("mapSlider"), slctx=slider.getContext("2d");
+  const sGUT=10, sRPAD=12, sAX=15; let sPlotW=0, stripHits=[];
+  function sizeStrip(){ const w=strip.clientWidth||strip.parentNode.clientWidth, h=strip.clientHeight||90;
+    strip.width=w*DPR; strip.height=h*DPR; sctx.setTransform(DPR,0,0,DPR,0,0); sPlotW=w-sGUT-sRPAD; }
+  const sx=m=>sGUT+(Math.max(T0,Math.min(T1,m))-T0)/(T1-T0)*sPlotW;
+  function rrs(x,y,w,h,r){sctx.beginPath();sctx.moveTo(x+r,y);sctx.arcTo(x+w,y,x+w,y+h,r);sctx.arcTo(x+w,y+h,x,y+h,r);
+    sctx.arcTo(x,y+h,x,y,r);sctx.arcTo(x,y,x+w,y,r);sctx.closePath();}
+  function drawStrip(){
+    if(!mapIsOpen()) return;
+    sizeStrip(); const h=strip.clientHeight; stripHits=[];
+    sctx.clearRect(0,0,strip.width,strip.height); sctx.textBaseline="middle";
+    const xn=sx(T), xf=sx(T+DELTA_R1);
+    sctx.fillStyle=P.frontier; sctx.fillRect(xn,sAX,xf-xn,h-sAX);
+    sctx.strokeStyle=P.frontierEdge; sctx.lineWidth=1; sctx.setLineDash([2,3]);
+    sctx.beginPath();sctx.moveTo(xf,sAX);sctx.lineTo(xf,h);sctx.stroke();sctx.setLineDash([]);
+    sctx.font="9px "+mono(); sctx.textAlign="center";
+    for(let hh=Math.ceil(T0/60);hh<=T1/60;hh+=2){ const hx=sx(hh*60);
+      sctx.strokeStyle=P.hair2; sctx.beginPath();sctx.moveTo(hx,sAX);sctx.lineTo(hx,h);sctx.stroke();
+      sctx.fillStyle=P.faint; sctx.fillText(String(hh).padStart(2,"0"),hx,sAX-6); }
+    for(const e of D().epochs){ const ex=sx(e.m), em=e.kind==="seed"||e.kind==="warm";
+      sctx.strokeStyle=em?P.firm:P.hair; sctx.lineWidth=em?1.4:1; sctx.setLineDash(em?[]:[2,3]);
+      sctx.beginPath();sctx.moveTo(ex,sAX);sctx.lineTo(ex,h);sctx.stroke();sctx.setLineDash([]); }
+    const v=vehById(focusVeh);
+    if(v){ const si=snapIdx(), snap=v.snaps[si]||[], jobs=D().jobs, snapEp=D().snapAt[si], by=sAX+10, bh=h-sAX-24;
+      const flags=MAPLOGIC.commitFlags(snap,snapEp,DELTA_R1,T);   // same 90-min frontier as the board + map
+      let prevD=null, prevTrip=null;
+      for(let i=0;i<snap.length;i++){ const s=snap[i], ji=s[0],arr=s[1],dep=s[2],tr=s[4];
+        if(tr!==prevTrip){prevD=null;prevTrip=tr;}
+        if(ji===-2){prevD=arr;continue;}
+        if(ji<0){ if(arr!=null&&dep!=null){ sctx.globalAlpha=T>=dep?.3:.5;sctx.fillStyle=P.depot;
+          sctx.fillRect(sx(arr),by+bh*.28,Math.max(3,sx(dep)-sx(arr)),bh*.44);sctx.globalAlpha=1;} prevD=dep; continue;}
+        const job=jobs[ji]||{}, a=(arr!=null?arr:dep), d=(dep!=null?dep:arr), ds=(prevD!=null?prevD:a);
+        const x0=sx(ds), x1=sx(d), W=Math.max(4,x1-x0);
+        const committed=flags[i], done=(committed&&d!=null&&T>=d), solid=(committed&&!done);
+        sctx.globalAlpha=done?.3:(solid?.92:.42); sctx.fillStyle=TYPE_C(job.ty);
+        rrs(x0,by,W,bh,2); sctx.fill(); sctx.globalAlpha=1;
+        if(!committed){ sctx.strokeStyle=TYPE_C(job.ty);sctx.lineWidth=1;sctx.setLineDash([3,2]);rrs(x0,by,W,bh,2);sctx.stroke();sctx.setLineDash([]); }
+        stripHits.push({x:x0,y:by,w:W,h:bh,job:job,vid:v.id,arr:a,dep:d,firm:solid,done:done,
+                        drive:Math.max(0,a-ds),isnew:!!job.new,reopt:!!s[5]});
+        prevD=d;
+      }
+      // load-utilization lines ON TOP of the blocks (front layer): two step curves on a shared
+      // 0-100% scale across the block band, with a 100% ceiling, % ticks, and a legend.
+      (function(){
+        const prof=(v.tourDay&&MAPLOGIC.tourLoadProfile)?MAPLOGIC.tourLoadProfile(v.tourDay):MAPLOGIC.loadProfile(snap,jobs); if(prof.length<2) return;
+        const yOf=u=>by+bh*(1-Math.max(0,Math.min(1,u)));
+        sctx.strokeStyle=P.hair2; sctx.lineWidth=1; sctx.setLineDash([2,3]);
+        sctx.beginPath();sctx.moveTo(sx(T0),yOf(1));sctx.lineTo(sx(T1),yOf(1));sctx.stroke();sctx.setLineDash([]);
+        sctx.fillStyle=P.faint; sctx.font="8px "+mono(); sctx.textAlign="left";
+        for(const u of [0,.5,1]) sctx.fillText(Math.round(u*100)+"%", sx(T0)+2, yOf(u));
+        const step=(key,cap,color)=>{ if(!cap) return;
+          sctx.strokeStyle=color; sctx.lineWidth=1.6; sctx.beginPath();
+          sctx.moveTo(sx(prof[0].t), yOf(prof[0][key]/cap));
+          for(let k=1;k<prof.length;k++){ const x=sx(prof[k].t);
+            sctx.lineTo(x, yOf(prof[k-1][key]/cap));      // hold previous level to this time
+            sctx.lineTo(x, yOf(prof[k][key]/cap)); }      // then step to the new level
+          sctx.stroke(); };
+        step("p", v.capP, P.utilPal);
+        step("kg", v.capKg, P.utilWt);
+        // legend: which line is which metric (top-right, usually-empty evening zone)
+        const lg=[]; if(v.capP) lg.push(["pallets",P.utilPal]); if(v.capKg) lg.push(["weight",P.utilWt]);
+        if(lg.length){ sctx.font="9px "+mono(); sctx.textAlign="left"; sctx.lineWidth=2.2;
+          const lgx=sx(T1)-88; lg.forEach((e,i)=>{ const ly=by+7+i*13;
+            sctx.strokeStyle=e[1]; sctx.beginPath(); sctx.moveTo(lgx,ly); sctx.lineTo(lgx+15,ly); sctx.stroke();
+            sctx.fillStyle=P.muted; sctx.fillText(e[0],lgx+19,ly); }); }
+      })();
+      // a TOUR day has no snap rows — render today's tour leg from the SAME nodes the map uses, so
+      // each block spans the WHOLE leg (drive-start -> depart) like a normal vehicle's rather than
+      // just the dwell, the depot-out drive folds into the first block, and the final day shows its
+      // return-to-depot leg (a depot-coloured block). Committed & immutable; grey once the clock passes.
+      if(v.tourDay){ const tnodes=MAPLOGIC.tourDayNodes(GEOM,v.tourDay); let prevDep=null, lead=true;
+        for(const nd of tnodes){
+          if(nd._origin) continue;                                    // direct collect: folded into the drive
+          if(nd.anchor && lead){ prevDep=nd.dep; lead=false; continue; }  // depot-out / overnight-resume: drive start only
+          lead=false;
+          const isRet=!!nd.anchor;                                    // a later depot anchor = the return-to-depot leg
+          const a=nd.arr, d=(isRet?nd.arr:nd.dep); if(d==null){ prevDep=d; continue; }
+          const ds=(prevDep!=null?prevDep:(a!=null?a:d)), x0=sx(ds), W=Math.max(4,sx(d)-x0), done=T>=d;
+          sctx.globalAlpha=done?.3:.92; sctx.fillStyle=isRet?P.depot:TYPE_C(nd.ty); rrs(x0,by,W,bh,2); sctx.fill(); sctx.globalAlpha=1;
+          if(!isRet) stripHits.push({x:x0,y:by,w:W,h:bh,job:{ty:nd.ty,o:nd.o,pc:nd.pc,pco:nd.pco,pallets:nd.p,kg:nd.kg,nm:"",bk:0},
+                        vid:v.id,arr:a,dep:d,firm:!done,done:done,drive:Math.max(0,(a!=null?a:d)-ds),isnew:false,reopt:false});
+          prevDep=d;
+        }
+      }
+    }
+    sctx.strokeStyle=P.ink;sctx.lineWidth=1.5;sctx.beginPath();sctx.moveTo(xn,sAX-4);sctx.lineTo(xn,h);sctx.stroke();
+    sctx.fillStyle=P.ink;sctx.font="600 9.5px "+mono();sctx.textAlign="left";sctx.fillText("▸ "+hhmm(T),xn+3,sAX-6);
+  }
+  // the clock slider below the strip: same time axis + playhead, NO order blocks (so it
+  // never triggers the detail popup) — the popup-free way to scrub while watching the map.
+  function sizeSlider(){ const w=slider.clientWidth||slider.parentNode.clientWidth, h=slider.clientHeight||60;
+    slider.width=w*DPR; slider.height=h*DPR; slctx.setTransform(DPR,0,0,DPR,0,0); }
+  function drawSlider(){
+    if(!mapIsOpen()) return;
+    sizeSlider(); const h=slider.clientHeight, my=Math.round(h*0.42);
+    slctx.clearRect(0,0,slider.width,slider.height); slctx.textBaseline="middle";
+    const xn=sx(T), xf=sx(T+DELTA_R1);
+    slctx.strokeStyle=P.hair; slctx.lineWidth=3; slctx.lineCap="round";
+    slctx.beginPath();slctx.moveTo(sGUT,my);slctx.lineTo(sGUT+sPlotW,my);slctx.stroke();
+    slctx.fillStyle=P.frontier; slctx.fillRect(xn,my-7,Math.max(1,xf-xn),14);   // +90 freeze band
+    for(const e of D().epochs){ const ex=sx(e.m), em=e.kind==="seed"||e.kind==="warm";
+      slctx.strokeStyle=em?P.firm:P.hair2; slctx.lineWidth=em?2:1;
+      slctx.beginPath();slctx.moveTo(ex,my-6);slctx.lineTo(ex,my+6);slctx.stroke(); }
+    slctx.fillStyle=P.faint; slctx.font="9px "+mono(); slctx.textAlign="center";
+    for(let hh=0;hh<=24;hh+=3) slctx.fillText(String(hh).padStart(2,"0"),sx(hh*60),h-8);
+    slctx.fillStyle=P.ink; slctx.beginPath(); slctx.arc(xn,my,7,0,6.2832); slctx.fill();   // handle
+    slctx.fillStyle=P.panel; slctx.beginPath(); slctx.arc(xn,my,3,0,6.2832); slctx.fill();
+  }
+  function mapRedraw(){ drawMap(); drawStrip(); drawSlider(); document.getElementById("mapClock").textContent=hhmm(T); }
+  function slTfromX(clientX){ const r=slider.getBoundingClientRect();
+    T=Math.max(T0,Math.min(T1,T0+((clientX-r.left)-sGUT)/sPlotW*(T1-T0))); mapRedraw(); }
+  let sdrag=false;
+  slider.addEventListener("pointerdown",e=>{sdrag=true;stopPlay();slider.setPointerCapture(e.pointerId);slTfromX(e.clientX);});
+  slider.addEventListener("pointermove",e=>{ if(sdrag) slTfromX(e.clientX); });
+  slider.addEventListener("pointerup",()=>{sdrag=false;});
+  // the strip is HOVER-ONLY now (scrub on the slider): show a block's detail, never scrub
+  strip.addEventListener("pointermove",e=>{
+    const r=strip.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    let hit=null; for(const hb of stripHits){ if(mx>=hb.x-2&&mx<=hb.x+hb.w+2&&my>=hb.y-1&&my<=hb.y+hb.h+1){hit=hb;break;} }
+    if(hit){ tip.innerHTML=jobTipHTML(hit.job,hit); placeTip(e.clientX,e.clientY); }
+    else tip.style.opacity=0;
+  });
+  strip.addEventListener("pointerleave",()=>{tip.style.opacity=0;});
+  document.getElementById("mapPlay").onclick=()=>playing?stopPlay():startPlay();
+  document.getElementById("mapStop").onclick=()=>{ stopPlay(); T=T0; if(mapIsOpen()) mapRedraw(); };
+  const mfocus=document.getElementById("mapFocus"), mfocusLbl=document.getElementById("mapFocusLbl");
+  const viewLabel=m=>m==="static"?"Static":"Dynamic";
+  mfocus.addEventListener("change",()=>{ mapView=mfocus.checked?"static":"dynamic";
+    mfocusLbl.textContent=viewLabel(mapView); if(mapIsOpen()) drawMap(); });
+  const mapAllBtn=document.getElementById("mapAllBtn");
+  const mapAllModes=document.getElementById("mapAllModes");
+  mapAllBtn.addEventListener("click",()=>{ showAll=!showAll;
+    mapAllBtn.setAttribute("aria-pressed",showAll?"true":"false");
+    mapAllBtn.textContent=showAll?"Single route":"All routes";
+    if(mapAllModes) mapAllModes.style.display=showAll?"":"none";
+    if(!showAll) renderAllLegend();                       // restore the stock legend
+    mapNeedsFit=true; if(mapIsOpen()) drawMap(); });
+  if(mapAllModes) mapAllModes.querySelectorAll("button").forEach(b=>{
+    b.addEventListener("click",()=>{ allMode=b.dataset.amode;
+      mapAllModes.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));
+      if(mapIsOpen()&&showAll) drawMap(); });
+  });
+  window.__setClock=(t)=>{ T=Math.max(T0,Math.min(T1,t)); draw(); if(mapIsOpen()) mapRedraw(); };
+  window.__mapSet=(o)=>{ const m=o.view||o.mode; if(m){ mapView=m; mfocus.checked=(m==="static"); mfocusLbl.textContent=viewLabel(mapView); }
+    if(o.others!=null) showOthers=o.others; if(mapIsOpen()) drawMap(); };
+
+  // ---- play ----
+  let raf=null,last=0;
+  function tick(ts){
+    if(!playing) return;
+    if(!last) last=ts;
+    const dt=(ts-last)/1000; last=ts; T+=dt*40;
+    if(T>=T1){T=T1;stopPlay();}
+    draw(); if(mapIsOpen()) mapRedraw(); raf=requestAnimationFrame(tick);
+  }
+  function startPlay(){ if(T>=T1) T=T0; playing=true; last=0;
+    document.getElementById("play").classList.add("playing");
+    document.getElementById("playlbl").textContent="Pause";
+    document.getElementById("mapPlay").classList.add("playing"); raf=requestAnimationFrame(tick); }
+  function stopPlay(){ playing=false; if(raf)cancelAnimationFrame(raf);
+    document.getElementById("play").classList.remove("playing");
+    document.getElementById("playlbl").textContent="Play the day";
+    document.getElementById("mapPlay").classList.remove("playing"); }
+  document.getElementById("play").onclick=()=>playing?stopPlay():startPlay();
+  document.getElementById("rewind").onclick=()=>{stopPlay();T=T0;draw();};
+  document.getElementById("prevDay").onclick=()=>{stopPlay();gotoDay(dayIdx-1);};
+  document.getElementById("nextDay").onclick=()=>{stopPlay();gotoDay(dayIdx+1);};
+  addEventListener("keydown",e=>{ if(e.key==="ArrowLeft"&&!dragging){stopPlay();gotoDay(dayIdx-1);}
+    else if(e.key==="ArrowRight"&&!dragging){stopPlay();gotoDay(dayIdx+1);} });
+  document.getElementById("flt").onclick=e=>{filterIntraday=!filterIntraday;
+    e.currentTarget.classList.toggle("on",filterIntraday);
+    e.currentTarget.setAttribute("aria-pressed",filterIntraday);
+    e.currentTarget.textContent=filterIntraday?"Showing changed trucks only":"Only trucks that changed intraday";
+    layout();draw();};
+
+  // ---- theme + resize ----
+  new MutationObserver(()=>{palette();draw();}).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+  matchMedia("(prefers-color-scheme:dark)").addEventListener("change",()=>{palette();draw();});
+  let rt=null; addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(()=>{layout();draw();},80);});
+
+  // ---- footer ----
+  const totalSnap=DATA.days.reduce((a,d)=>a+d.snapAt.length,0);
+  document.getElementById("foot").innerHTML=
+    `${DATA.days.length} day(s) · ${totalSnap} plan snapshots. The board shows the plan in effect at the clock — `+
+    `routes <b>re-time and reshuffle</b> as the day re-optimizes. A stop is <b>committed</b> ${DELTA_R1} min before it `+
+    `departs (then it can only be delayed). ⛺ multi-day tour · ⇅ trunk to hub.`;
+
+  // automation / deep-link hooks: open a vehicle's map / page to a day programmatically
+  window.__mapOpen=openMap;
+  window.__goDay=(i)=>gotoDay(i);
+
+  palette(); renderDayNav(); layout(); draw();
+  if(!reduce) setTimeout(startPlay,600);
+})();
+</script>
